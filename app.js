@@ -11,6 +11,8 @@ class WineBanditApp {
         this.model = new BayesianBradleyTerry(WINES.length, SPICES.length);
         this.selectedCells = [];
         this.comparisonMode = 'global'; // 'global' or 'beats'
+        this.leaderboardView = 'arms'; // 'arms' or 'factors'
+        this.nextButtonSlot = 0; // 0 or 1 for round-robin selection
         this.init();
     }
 
@@ -74,109 +76,94 @@ class WineBanditApp {
     }
 
     handleCellClick(wine, spice, cell) {
-        const cellId = `${wine}-${spice}`;
-
-        // Check if already selected
-        const existingIndex = this.selectedCells.findIndex(
-            sel => sel.wine === wine && sel.spice === spice
+        // Check if this cell is already assigned to a button
+        const existingButtonIdx = this.selectedCells.findIndex(
+            sel => sel && sel.wine === wine && sel.spice === spice
         );
 
-        if (existingIndex !== -1) {
-            // Deselect
-            this.selectedCells.splice(existingIndex, 1);
-            cell.classList.remove('selected');
-        } else {
-            // Select (max 2)
-            if (this.selectedCells.length < 2) {
-                this.selectedCells.push({ wine, spice, cell });
-                cell.classList.add('selected');
-            } else {
-                // Deselect first and select new
-                this.selectedCells[0].cell.classList.remove('selected');
-                this.selectedCells.shift();
-                this.selectedCells.push({ wine, spice, cell });
-                cell.classList.add('selected');
+        if (existingButtonIdx !== -1) {
+            // Deselect this button
+            this.selectedCells[existingButtonIdx].cell.classList.remove('selected');
+            this.selectedCells[existingButtonIdx] = null;
+            this.updateComparisonButtons();
+
+            // Update display if we're in beats mode and this was the first selection
+            if (this.comparisonMode === 'beats' && existingButtonIdx === 0) {
+                this.updateDisplay();
             }
+            return;
         }
 
-        this.updateSubmitButton();
-    }
+        // Ensure we have slots for both buttons
+        if (this.selectedCells.length === 0) {
+            this.selectedCells = [null, null];
+        }
 
-    updateSubmitButton() {
-        const btn = document.getElementById('submitBtn');
+        // Assign to next button slot (round robin)
+        const targetSlot = this.nextButtonSlot;
 
-        if (this.selectedCells.length === 2) {
-            btn.disabled = false;
-            btn.textContent = 'Click to Submit Winner';
-            btn.onclick = () => this.showWinnerSelection();
-        } else {
-            btn.disabled = true;
-            btn.textContent = `Select ${2 - this.selectedCells.length} more combination(s)`;
+        // Remove previous selection in this slot if exists
+        if (this.selectedCells[targetSlot]) {
+            this.selectedCells[targetSlot].cell.classList.remove('selected');
+        }
+
+        // Assign new selection
+        this.selectedCells[targetSlot] = { wine, spice, cell };
+        cell.classList.add('selected');
+
+        // Move to next slot (round robin)
+        this.nextButtonSlot = (this.nextButtonSlot + 1) % 2;
+
+        // Update button display
+        this.updateComparisonButtons();
+
+        // If first selection in beats mode, update probabilities
+        if (this.comparisonMode === 'beats' && targetSlot === 0) {
+            this.updateDisplay();
         }
     }
 
-    showWinnerSelection() {
-        if (this.selectedCells.length !== 2) return;
+    updateComparisonButtons() {
+        const btn1 = document.getElementById('comparisonBtn1');
+        const btn2 = document.getElementById('comparisonBtn2');
 
-        const btn = document.getElementById('submitBtn');
-        const cell1 = this.selectedCells[0];
-        const cell2 = this.selectedCells[1];
+        // Update button 1
+        if (this.selectedCells[0]) {
+            const combo = `${WINES[this.selectedCells[0].wine]}${SPICES[this.selectedCells[0].spice]}`;
+            btn1.textContent = combo;
+            btn1.classList.remove('empty');
+            btn1.onclick = () => this.submitComparison(1);
+        } else {
+            btn1.textContent = '?';
+            btn1.classList.add('empty');
+            btn1.onclick = null;
+        }
 
-        const label1 = `${WINES[cell1.wine]}${SPICES[cell1.spice]}`;
-        const label2 = `${WINES[cell2.wine]}${SPICES[cell2.spice]}`;
+        // Update button 2
+        if (this.selectedCells[1]) {
+            const combo = `${WINES[this.selectedCells[1].wine]}${SPICES[this.selectedCells[1].spice]}`;
+            btn2.textContent = combo;
+            btn2.classList.remove('empty');
+            btn2.onclick = () => this.submitComparison(2);
+        } else {
+            btn2.textContent = '?';
+            btn2.classList.add('empty');
+            btn2.onclick = null;
+        }
 
-        btn.textContent = `Winner: ${label1} | ${label2}`;
-
-        // Create temporary buttons for winner selection
-        btn.onclick = null;
-
-        let clickCount = 0;
-        const clickHandler = (winner) => {
-            clickCount++;
-            if (clickCount === 1) {
-                this.submitComparison(winner);
-            }
-        };
-
-        // Change button to show both options
-        btn.style.display = 'none';
-
-        const controls = document.querySelector('.controls');
-        const btnContainer = document.createElement('div');
-        btnContainer.style.display = 'flex';
-        btnContainer.style.gap = '20px';
-        btnContainer.style.justifyContent = 'center';
-
-        const btn1 = document.createElement('button');
-        btn1.textContent = `✓ ${label1} Wins`;
-        btn1.style.flex = '1';
-        btn1.style.maxWidth = '300px';
-        btn1.onclick = () => {
-            clickHandler(1);
-            controls.removeChild(btnContainer);
-            btn.style.display = 'block';
-        };
-
-        const btn2 = document.createElement('button');
-        btn2.textContent = `✓ ${label2} Wins`;
-        btn2.style.flex = '1';
-        btn2.style.maxWidth = '300px';
-        btn2.onclick = () => {
-            clickHandler(2);
-            controls.removeChild(btnContainer);
-            btn.style.display = 'block';
-        };
-
-        btnContainer.appendChild(btn1);
-        btnContainer.appendChild(btn2);
-        controls.appendChild(btnContainer);
+        // Update mode label if in beats mode
+        if (this.comparisonMode === 'beats' && this.selectedCells[0]) {
+            const refCombo = `${WINES[this.selectedCells[0].wine]}${SPICES[this.selectedCells[0].spice]}`;
+            const modeToggle = document.getElementById('modeToggle');
+            modeToggle.textContent = `Mode: P(X > ${refCombo})`;
+        }
     }
 
     submitComparison(winner) {
-        if (this.selectedCells.length !== 2) return;
-
         const cell1 = this.selectedCells[0];
         const cell2 = this.selectedCells[1];
+
+        if (!cell1 || !cell2) return;
 
         // Add animation to winner
         const winnerCell = winner === 1 ? cell1.cell : cell2.cell;
@@ -191,18 +178,22 @@ class WineBanditApp {
         );
 
         // Clear selection
-        this.selectedCells.forEach(sel => sel.cell.classList.remove('selected'));
-        this.selectedCells = [];
+        cell1.cell.classList.remove('selected');
+        cell2.cell.classList.remove('selected');
+        this.selectedCells = [null, null];
+        this.nextButtonSlot = 0;
 
-        // Update display
+        // Update display and buttons
         this.updateDisplay();
-        this.updateSubmitButton();
+        this.updateComparisonButtons();
     }
 
     updateDisplay() {
         // Compute probabilities
         let probabilities;
-        if (this.comparisonMode === 'global' || this.selectedCells.length === 0) {
+        const hasFirstSelection = this.selectedCells.length > 0 && this.selectedCells[0];
+
+        if (this.comparisonMode === 'global' || !hasFirstSelection) {
             probabilities = this.model.computeProbabilityBest(1000);
         } else {
             // Show P(beats selected cell)
@@ -261,6 +252,14 @@ class WineBanditApp {
     }
 
     updateLeaderboard(probabilities) {
+        if (this.leaderboardView === 'arms') {
+            this.renderArmsView(probabilities);
+        } else {
+            this.renderFactorsView();
+        }
+    }
+
+    renderArmsView(probabilities) {
         const leaderboardList = document.getElementById('leaderboardList');
         leaderboardList.innerHTML = '';
 
@@ -293,6 +292,97 @@ class WineBanditApp {
         });
     }
 
+    renderFactorsView() {
+        const leaderboardList = document.getElementById('leaderboardList');
+        leaderboardList.innerHTML = '';
+
+        // Compute factor probabilities
+        const wineProbs = this.model.computeProbabilityBestWine(1000);
+        const spiceProbs = this.model.computeProbabilityBestSpice(1000);
+
+        // Wine section
+        const wineSection = document.createElement('div');
+        wineSection.className = 'factor-section';
+
+        const wineTitle = document.createElement('h3');
+        wineTitle.textContent = 'Wine Rankings';
+        wineSection.appendChild(wineTitle);
+
+        // Sort wines by effect
+        const wineEffects = this.model.params.slice(0, 3).map((effect, idx) => ({
+            wine: idx,
+            effect: effect,
+            prob: wineProbs[idx]
+        }));
+        wineEffects.sort((a, b) => b.effect - a.effect);
+
+        wineEffects.forEach((item, index) => {
+            const div = document.createElement('div');
+            div.className = 'leaderboard-item';
+
+            const rank = document.createElement('span');
+            rank.className = 'leaderboard-rank';
+            rank.textContent = `#${index + 1}`;
+
+            const name = document.createElement('span');
+            name.className = 'leaderboard-name';
+            name.textContent = `Wine ${WINES[item.wine]}`;
+
+            const score = document.createElement('span');
+            score.className = 'leaderboard-score';
+            score.textContent = `${(item.prob * 100).toFixed(1)}% (${item.effect.toFixed(2)})`;
+
+            div.appendChild(rank);
+            div.appendChild(name);
+            div.appendChild(score);
+
+            wineSection.appendChild(div);
+        });
+
+        leaderboardList.appendChild(wineSection);
+
+        // Spice section
+        const spiceSection = document.createElement('div');
+        spiceSection.className = 'factor-section';
+
+        const spiceTitle = document.createElement('h3');
+        spiceTitle.textContent = 'Spice Mix Rankings';
+        spiceSection.appendChild(spiceTitle);
+
+        // Sort spices by effect
+        const spiceEffects = this.model.params.slice(3, 7).map((effect, idx) => ({
+            spice: idx,
+            effect: effect,
+            prob: spiceProbs[idx]
+        }));
+        spiceEffects.sort((a, b) => b.effect - a.effect);
+
+        spiceEffects.forEach((item, index) => {
+            const div = document.createElement('div');
+            div.className = 'leaderboard-item';
+
+            const rank = document.createElement('span');
+            rank.className = 'leaderboard-rank';
+            rank.textContent = `#${index + 1}`;
+
+            const name = document.createElement('span');
+            name.className = 'leaderboard-name';
+            name.textContent = `Spice ${SPICES[item.spice]}`;
+
+            const score = document.createElement('span');
+            score.className = 'leaderboard-score';
+            score.textContent = `${(item.prob * 100).toFixed(1)}% (${item.effect.toFixed(2)})`;
+
+            div.appendChild(rank);
+            div.appendChild(name);
+            div.appendChild(score);
+
+            spiceSection.appendChild(div);
+        });
+
+        leaderboardList.appendChild(spiceSection);
+    }
+
     updateStats() {
         const numComparisons = document.getElementById('numComparisons');
         numComparisons.textContent = this.model.comparisons.length;
@@ -320,19 +410,51 @@ class WineBanditApp {
         const modeToggle = document.getElementById('modeToggle');
         modeToggle.addEventListener('click', () => {
             this.comparisonMode = this.comparisonMode === 'global' ? 'beats' : 'global';
-            modeToggle.textContent = this.comparisonMode === 'global'
-                ? 'Mode: Global Best'
-                : 'Mode: Beats Selected';
+
+            if (this.comparisonMode === 'global') {
+                modeToggle.textContent = 'Mode: Global Best';
+            } else if (this.selectedCells[0]) {
+                const refCombo = `${WINES[this.selectedCells[0].wine]}${SPICES[this.selectedCells[0].spice]}`;
+                modeToggle.textContent = `Mode: P(X > ${refCombo})`;
+            } else {
+                modeToggle.textContent = 'Mode: Beats Selected';
+            }
+
+            this.updateDisplay();
+        });
+
+        // View toggle tabs
+        const viewBestArm = document.getElementById('viewBestArm');
+        const viewFactors = document.getElementById('viewFactors');
+
+        viewBestArm.addEventListener('click', () => {
+            this.leaderboardView = 'arms';
+            viewBestArm.classList.add('active');
+            viewFactors.classList.remove('active');
+            this.updateDisplay();
+        });
+
+        viewFactors.addEventListener('click', () => {
+            this.leaderboardView = 'factors';
+            viewFactors.classList.add('active');
+            viewBestArm.classList.remove('active');
             this.updateDisplay();
         });
     }
 
     reset() {
         this.model.reset();
-        this.selectedCells.forEach(sel => sel.cell.classList.remove('selected'));
-        this.selectedCells = [];
+        if (this.selectedCells.length > 0) {
+            this.selectedCells.forEach(sel => {
+                if (sel && sel.cell) {
+                    sel.cell.classList.remove('selected');
+                }
+            });
+        }
+        this.selectedCells = [null, null];
+        this.nextButtonSlot = 0;
         this.updateDisplay();
-        this.updateSubmitButton();
+        this.updateComparisonButtons();
     }
 }
 

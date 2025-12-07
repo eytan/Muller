@@ -475,6 +475,98 @@ class BayesianBradleyTerry {
     }
 
     /**
+     * Compute probability that each wine is the best wine
+     * Returns array of probabilities for each wine
+     */
+    computeProbabilityBestWine(numSamples = 1000) {
+        if (this.comparisons.length === 0) {
+            return Array(this.numWines).fill(1 / this.numWines);
+        }
+
+        const H = this.computeHessian();
+        const covMatrix = this.invertMatrix(H);
+
+        let L;
+        try {
+            L = this.choleskyDecomposition(covMatrix);
+        } catch (e) {
+            L = Array(this.numParams).fill(null).map((_, i) =>
+                Array(this.numParams).fill(null).map((_, j) =>
+                    i === j ? Math.sqrt(Math.max(covMatrix[i][i], 0)) : 0
+                )
+            );
+        }
+
+        const counts = Array(this.numWines).fill(0);
+
+        for (let sample = 0; sample < numSamples; sample++) {
+            const z = Array(this.numParams).fill(0).map(() => this.randomNormal());
+
+            const sampledParams = Array(this.numParams);
+            for (let i = 0; i < this.numParams; i++) {
+                let sum = this.params[i];
+                for (let j = 0; j < this.numParams; j++) {
+                    sum += L[i][j] * z[j];
+                }
+                sampledParams[i] = sum;
+            }
+
+            // Find which wine has max effect
+            const wineEffects = sampledParams.slice(0, this.numWines);
+            const maxIdx = wineEffects.indexOf(Math.max(...wineEffects));
+            counts[maxIdx]++;
+        }
+
+        return counts.map(c => c / numSamples);
+    }
+
+    /**
+     * Compute probability that each spice is the best spice
+     * Returns array of probabilities for each spice
+     */
+    computeProbabilityBestSpice(numSamples = 1000) {
+        if (this.comparisons.length === 0) {
+            return Array(this.numSpices).fill(1 / this.numSpices);
+        }
+
+        const H = this.computeHessian();
+        const covMatrix = this.invertMatrix(H);
+
+        let L;
+        try {
+            L = this.choleskyDecomposition(covMatrix);
+        } catch (e) {
+            L = Array(this.numParams).fill(null).map((_, i) =>
+                Array(this.numParams).fill(null).map((_, j) =>
+                    i === j ? Math.sqrt(Math.max(covMatrix[i][i], 0)) : 0
+                )
+            );
+        }
+
+        const counts = Array(this.numSpices).fill(0);
+
+        for (let sample = 0; sample < numSamples; sample++) {
+            const z = Array(this.numParams).fill(0).map(() => this.randomNormal());
+
+            const sampledParams = Array(this.numParams);
+            for (let i = 0; i < this.numParams; i++) {
+                let sum = this.params[i];
+                for (let j = 0; j < this.numParams; j++) {
+                    sum += L[i][j] * z[j];
+                }
+                sampledParams[i] = sum;
+            }
+
+            // Find which spice has max effect
+            const spiceEffects = sampledParams.slice(this.numWines, this.numWines + this.numSpices);
+            const maxIdx = spiceEffects.indexOf(Math.max(...spiceEffects));
+            counts[maxIdx]++;
+        }
+
+        return counts.map(c => c / numSamples);
+    }
+
+    /**
      * Reset the model
      */
     reset() {
