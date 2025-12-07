@@ -11,21 +11,21 @@ class BayesianBradleyTerry {
 
         // Prior parameters
         this.priorMean = 0;
-        this.priorPrecision = 0.1; // Small precision = large variance (weak prior)
+        this.priorPrecision = 0.01; // Small precision = large variance (very weak prior)
 
         // Model parameters (wine effects + spice effects)
         this.params = new Array(this.numParams).fill(0);
 
         // Uncertainty estimates (standard deviations)
-        this.uncertainties = new Array(this.numParams).fill(1.0);
+        this.uncertainties = new Array(this.numParams).fill(10.0);
 
         // Training data
         this.comparisons = [];
 
         // Optimization settings
-        this.learningRate = 0.1;
-        this.maxIterations = 1000;
-        this.convergenceThreshold = 1e-6;
+        this.learningRate = 0.2;
+        this.maxIterations = 3000;
+        this.convergenceThreshold = 1e-5;
     }
 
     /**
@@ -235,22 +235,32 @@ class BayesianBradleyTerry {
     }
 
     /**
-     * Fit the model using MAP estimation
+     * Fit the model using MAP estimation with adaptive gradient descent
      */
     fit() {
         if (this.comparisons.length === 0) {
             return;
         }
 
-        // Gradient descent for MAP estimation
+        // Adaptive gradient descent with momentum
+        const velocity = new Array(this.numParams).fill(0);
+        const momentum = 0.9;
+        let learningRate = this.learningRate;
+
         for (let iter = 0; iter < this.maxIterations; iter++) {
             const grad = this.computeGradient();
 
-            // Update parameters
+            // Update with momentum
             let maxGrad = 0;
             for (let i = 0; i < this.numParams; i++) {
-                this.params[i] -= this.learningRate * grad[i];
+                velocity[i] = momentum * velocity[i] - learningRate * grad[i];
+                this.params[i] += velocity[i];
                 maxGrad = Math.max(maxGrad, Math.abs(grad[i]));
+            }
+
+            // Adaptive learning rate decay
+            if (iter % 100 === 0 && iter > 0) {
+                learningRate *= 0.95;
             }
 
             // Check convergence
@@ -297,7 +307,12 @@ class BayesianBradleyTerry {
      */
     reset() {
         this.params = new Array(this.numParams).fill(0);
-        this.uncertainties = new Array(this.numParams).fill(1.0);
+        this.uncertainties = new Array(this.numParams).fill(10.0);
         this.comparisons = [];
     }
+}
+
+// Export for Node.js testing
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { BayesianBradleyTerry };
 }
