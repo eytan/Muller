@@ -15,14 +15,14 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 15px;
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
             background: white;
-            border-radius: 16px;
+            border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
         }
@@ -30,24 +30,24 @@
         header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 30px;
+            padding: 15px;
             text-align: center;
         }
 
         h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 1.8em;
+            margin-bottom: 5px;
         }
 
         .subtitle {
-            font-size: 1.1em;
+            font-size: 0.9em;
             opacity: 0.9;
         }
 
         .main-content {
             display: flex;
-            gap: 30px;
-            padding: 30px;
+            gap: 20px;
+            padding: 20px;
         }
 
         .grid-section {
@@ -63,18 +63,19 @@
 
         .grid-container {
             display: grid;
-            grid-template-columns: 80px repeat(4, 1fr);
-            gap: 10px;
-            margin-top: 20px;
+            grid-template-columns: 60px repeat(4, 1fr);
+            gap: 6px;
+            margin-top: 12px;
         }
 
         .grid-header {
             background: #667eea;
             color: white;
-            padding: 15px;
+            padding: 8px;
             text-align: center;
             font-weight: bold;
-            border-radius: 8px;
+            font-size: 0.85em;
+            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -82,14 +83,14 @@
 
         .grid-cell {
             background: white;
-            border: 3px solid #e0e0e0;
-            padding: 20px;
+            border: 2px solid #e0e0e0;
+            padding: 10px;
             text-align: center;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.3s ease;
             position: relative;
-            min-height: 100px;
+            min-height: 70px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -119,23 +120,23 @@
 
         .cell-label {
             font-weight: bold;
-            font-size: 0.9em;
-            margin-bottom: 8px;
+            font-size: 0.75em;
+            margin-bottom: 4px;
         }
 
         .cell-score {
-            font-size: 1.2em;
+            font-size: 1em;
             font-weight: bold;
         }
 
         .cell-uncertainty {
-            font-size: 0.8em;
+            font-size: 0.7em;
             opacity: 0.7;
-            margin-top: 4px;
+            margin-top: 2px;
         }
 
         .controls {
-            margin-top: 30px;
+            margin-top: 15px;
             text-align: center;
         }
 
@@ -143,9 +144,9 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 15px 40px;
-            font-size: 1.1em;
-            border-radius: 8px;
+            padding: 10px 25px;
+            font-size: 0.95em;
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: bold;
@@ -163,10 +164,11 @@
 
         .instructions {
             background: #e3f2fd;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border-left: 4px solid #667eea;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            border-left: 3px solid #667eea;
+            font-size: 0.85em;
         }
 
         .leaderboard h2 {
@@ -177,30 +179,31 @@
 
         .leaderboard-item {
             background: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            border-left: 4px solid #667eea;
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            border-left: 3px solid #667eea;
             transition: all 0.3s ease;
+            font-size: 0.85em;
         }
 
         .leaderboard-item:hover {
-            transform: translateX(5px);
+            transform: translateX(3px);
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
         .leaderboard-rank {
-            font-size: 1.5em;
+            font-size: 1.2em;
             font-weight: bold;
             color: #667eea;
             display: inline-block;
-            width: 40px;
+            width: 30px;
         }
 
         .leaderboard-name {
             font-weight: bold;
             display: inline-block;
-            width: 150px;
+            width: 120px;
         }
 
         .leaderboard-score {
@@ -210,9 +213,9 @@
         }
 
         .leaderboard-uncertainty {
-            font-size: 0.85em;
+            font-size: 0.8em;
             color: #666;
-            margin-top: 5px;
+            margin-top: 3px;
         }
 
         .stats {
@@ -256,32 +259,34 @@
         }
 
         .mode-toggle {
-            background: #28a745;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             width: 100%;
-            margin-top: 15px;
-            font-size: 0.95em;
+            margin-top: 10px;
+            font-size: 0.85em;
+            padding: 8px;
         }
 
         .mode-toggle:hover:not(:disabled) {
-            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
 
         .comparison-buttons {
             display: flex;
-            gap: 20px;
+            gap: 15px;
             justify-content: center;
         }
 
         .comparison-btn {
             flex: 1;
-            max-width: 300px;
-            min-height: 80px;
-            font-size: 1.1em;
+            max-width: 250px;
+            min-height: 60px;
+            font-size: 0.95em;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 20px;
-            border-radius: 8px;
+            padding: 12px;
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: bold;
@@ -350,6 +355,56 @@
             border-bottom: 2px solid #667eea;
             padding-bottom: 5px;
         }
+
+        .comparison-table-section {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .comparison-table-section h3 {
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            font-size: 0.75em;
+            margin-top: 10px;
+        }
+
+        .comparison-table th {
+            background: #667eea;
+            color: white;
+            padding: 6px;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .comparison-table td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .comparison-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .export-csv {
+            display: inline-block;
+            margin-left: 15px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .export-csv:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -404,9 +459,27 @@
                     </div>
                 </div>
 
-                <button class="mode-toggle" id="modeToggle">Mode: Global Best</button>
+                <button class="mode-toggle" id="modeToggle">Global Best</button>
                 <button class="reset-button" id="resetBtn">Reset All Data</button>
             </div>
+        </div>
+
+        <div class="comparison-table-section">
+            <h3>
+                Comparison History
+                <a href="#" id="exportCsv" class="export-csv">Export CSV</a>
+            </h3>
+            <table class="comparison-table" id="comparisonTable">
+                <thead>
+                    <tr>
+                        <th>Comparison</th>
+                        <th>Wins</th>
+                    </tr>
+                </thead>
+                <tbody id="comparisonTableBody">
+                    <!-- Table rows will be generated by JavaScript -->
+                </tbody>
+            </table>
         </div>
     </div>
 

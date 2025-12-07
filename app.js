@@ -20,6 +20,7 @@ class WineBanditApp {
         this.createGrid();
         this.attachEventListeners();
         this.updateDisplay();
+        this.updateComparisonTable();
     }
 
     createGrid() {
@@ -86,11 +87,6 @@ class WineBanditApp {
             this.selectedCells[existingButtonIdx].cell.classList.remove('selected');
             this.selectedCells[existingButtonIdx] = null;
             this.updateComparisonButtons();
-
-            // Update display if we're in beats mode and this was the first selection
-            if (this.comparisonMode === 'beats' && existingButtonIdx === 0) {
-                this.updateDisplay();
-            }
             return;
         }
 
@@ -114,13 +110,8 @@ class WineBanditApp {
         // Move to next slot (round robin)
         this.nextButtonSlot = (this.nextButtonSlot + 1) % 2;
 
-        // Update button display
+        // Update button display and cell labels
         this.updateComparisonButtons();
-
-        // If first selection in beats mode, update probabilities
-        if (this.comparisonMode === 'beats' && targetSlot === 0) {
-            this.updateDisplay();
-        }
     }
 
     updateComparisonButtons() {
@@ -151,11 +142,9 @@ class WineBanditApp {
             btn2.onclick = null;
         }
 
-        // Update mode label if in beats mode
-        if (this.comparisonMode === 'beats' && this.selectedCells[0]) {
-            const refCombo = `${WINES[this.selectedCells[0].wine]}${SPICES[this.selectedCells[0].spice]}`;
-            const modeToggle = document.getElementById('modeToggle');
-            modeToggle.textContent = `Mode: P(X > ${refCombo})`;
+        // Update cell labels if in beats mode
+        if (this.comparisonMode === 'beats') {
+            this.updateCellLabels();
         }
     }
 
@@ -183,25 +172,17 @@ class WineBanditApp {
         this.selectedCells = [null, null];
         this.nextButtonSlot = 0;
 
-        // Update display and buttons
+        // Update display, buttons, and comparison table
         this.updateDisplay();
         this.updateComparisonButtons();
+        this.updateComparisonTable();
     }
 
     updateDisplay() {
-        // Compute probabilities
-        let probabilities;
-        const hasFirstSelection = this.selectedCells.length > 0 && this.selectedCells[0];
+        // Always compute global P(best) for colors and leaderboard
+        const globalProbabilities = this.model.computeProbabilityBest(1000);
 
-        if (this.comparisonMode === 'global' || !hasFirstSelection) {
-            probabilities = this.model.computeProbabilityBest(1000);
-        } else {
-            // Show P(beats selected cell)
-            const ref = this.selectedCells[0];
-            probabilities = this.model.computeProbabilityBeatReference(ref.wine, ref.spice, 1000);
-        }
-
-        // Update grid cells with colors and probabilities
+        // Update grid cells with colors and labels
         const cells = document.querySelectorAll('.grid-cell');
         cells.forEach(cell => {
             const wine = parseInt(cell.dataset.wine);
@@ -209,36 +190,71 @@ class WineBanditApp {
             const idx = wine * SPICES.length + spice;
 
             const score = this.model.getScore(wine, spice);
-            const prob = probabilities[idx];
+            const globalProb = globalProbabilities[idx];
 
             // Update score display
             const scoreElem = cell.querySelector('.cell-score');
             scoreElem.textContent = score.toFixed(2);
 
-            // Update probability display (shown in uncertainty slot)
-            const uncertaintyElem = cell.querySelector('.cell-uncertainty');
-            uncertaintyElem.textContent = `${(prob * 100).toFixed(1)}%`;
-
-            // Color cell by probability (white -> dark blue/purple)
-            const color = this.getProbabilityColor(prob);
+            // Color cell by global probability (white -> dark blue/purple)
+            const color = this.getProbabilityColor(globalProb);
             cell.style.backgroundColor = color;
 
             // Set text color for contrast
-            if (prob > 0.5) {
+            if (globalProb > 0.5) {
                 cell.style.color = 'white';
             } else {
                 cell.style.color = '#333';
             }
-
-            // Add title for hover tooltip
-            cell.title = `${WINES[wine]}${SPICES[spice]}\nScore: ${score.toFixed(2)}\nP(best): ${(prob * 100).toFixed(1)}%`;
         });
 
-        // Update leaderboard with probabilities
-        this.updateLeaderboard(probabilities);
+        // Update cell labels based on mode
+        this.updateCellLabels();
+
+        // Update leaderboard with global probabilities
+        this.updateLeaderboard(globalProbabilities);
 
         // Update stats
         this.updateStats();
+    }
+
+    updateCellLabels() {
+        const cells = document.querySelectorAll('.grid-cell');
+        const hasBothSelections = this.selectedCells.length > 1 &&
+                                  this.selectedCells[0] && this.selectedCells[1];
+
+        if (this.comparisonMode === 'beats' && hasBothSelections) {
+            // In beats mode with both cells selected, show P(X > Y)
+            const cell1 = this.selectedCells[0];
+            const cell2 = this.selectedCells[1];
+            const combo1 = `${WINES[cell1.wine]}${SPICES[cell1.spice]}`;
+            const combo2 = `${WINES[cell2.wine]}${SPICES[cell2.spice]}`;
+
+            // Compute probability that cell1 beats cell2
+            const prob1beats2 = this.model.computeProbabilityBeatReference(cell2.wine, cell2.spice, 1000);
+            const idx1 = cell1.wine * SPICES.length + cell1.spice;
+            const p = prob1beats2[idx1];
+
+            cells.forEach(cell => {
+                const uncertaintyElem = cell.querySelector('.cell-uncertainty');
+                uncertaintyElem.textContent = `P(${combo1} > ${combo2}) = ${(p * 100).toFixed(1)}%`;
+            });
+        } else {
+            // In global mode, show P(best) for each cell
+            const globalProbs = this.model.computeProbabilityBest(1000);
+            cells.forEach(cell => {
+                const wine = parseInt(cell.dataset.wine);
+                const spice = parseInt(cell.dataset.spice);
+                const idx = wine * SPICES.length + spice;
+                const prob = globalProbs[idx];
+
+                const uncertaintyElem = cell.querySelector('.cell-uncertainty');
+                uncertaintyElem.textContent = `${(prob * 100).toFixed(1)}%`;
+
+                // Update tooltip
+                cell.title = `${WINES[wine]}${SPICES[spice]}\nScore: ${this.model.getScore(wine, spice).toFixed(2)}\nP(best): ${(prob * 100).toFixed(1)}%`;
+            });
+        }
     }
 
     getProbabilityColor(prob) {
@@ -410,17 +426,10 @@ class WineBanditApp {
         const modeToggle = document.getElementById('modeToggle');
         modeToggle.addEventListener('click', () => {
             this.comparisonMode = this.comparisonMode === 'global' ? 'beats' : 'global';
+            modeToggle.textContent = this.comparisonMode === 'global' ? 'Global Best' : 'Beats Selected';
 
-            if (this.comparisonMode === 'global') {
-                modeToggle.textContent = 'Mode: Global Best';
-            } else if (this.selectedCells[0]) {
-                const refCombo = `${WINES[this.selectedCells[0].wine]}${SPICES[this.selectedCells[0].spice]}`;
-                modeToggle.textContent = `Mode: P(X > ${refCombo})`;
-            } else {
-                modeToggle.textContent = 'Mode: Beats Selected';
-            }
-
-            this.updateDisplay();
+            // Only update cell labels, not the entire display
+            this.updateCellLabels();
         });
 
         // View toggle tabs
@@ -440,6 +449,13 @@ class WineBanditApp {
             viewBestArm.classList.remove('active');
             this.updateDisplay();
         });
+
+        // CSV export
+        const exportCsv = document.getElementById('exportCsv');
+        exportCsv.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.exportCSV();
+        });
     }
 
     reset() {
@@ -455,6 +471,122 @@ class WineBanditApp {
         this.nextButtonSlot = 0;
         this.updateDisplay();
         this.updateComparisonButtons();
+        this.updateComparisonTable();
+    }
+
+    updateComparisonTable() {
+        const tbody = document.getElementById('comparisonTableBody');
+        tbody.innerHTML = '';
+
+        if (this.model.comparisons.length === 0) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 2;
+            cell.textContent = 'No comparisons yet';
+            cell.style.textAlign = 'center';
+            cell.style.color = '#999';
+            row.appendChild(cell);
+            tbody.appendChild(row);
+            return;
+        }
+
+        // Aggregate comparisons by pair (lexicographically sorted)
+        const pairCounts = new Map();
+
+        this.model.comparisons.forEach(comp => {
+            const combo1 = `${WINES[comp.wine1]}${SPICES[comp.spice1]}`;
+            const combo2 = `${WINES[comp.wine2]}${SPICES[comp.spice2]}`;
+
+            // Sort lexicographically to ensure X vs Y and Y vs X are the same key
+            let key, winner1Count, winner2Count;
+            if (combo1 < combo2) {
+                key = `${combo1} vs ${combo2}`;
+                winner1Count = comp.winner === 1 ? 1 : 0;
+                winner2Count = comp.winner === 2 ? 1 : 0;
+            } else {
+                key = `${combo2} vs ${combo1}`;
+                winner1Count = comp.winner === 2 ? 1 : 0;
+                winner2Count = comp.winner === 1 ? 1 : 0;
+            }
+
+            if (!pairCounts.has(key)) {
+                pairCounts.set(key, { wins1: 0, wins2: 0, combo1, combo2 });
+            }
+            const counts = pairCounts.get(key);
+            counts.wins1 += winner1Count;
+            counts.wins2 += winner2Count;
+        });
+
+        // Sort keys lexicographically
+        const sortedKeys = Array.from(pairCounts.keys()).sort();
+
+        sortedKeys.forEach(key => {
+            const counts = pairCounts.get(key);
+            const [combo1, combo2] = key.split(' vs ');
+
+            const row = document.createElement('tr');
+
+            const compCell = document.createElement('td');
+            compCell.textContent = key;
+            row.appendChild(compCell);
+
+            const winsCell = document.createElement('td');
+            winsCell.textContent = `${counts.wins1}-${counts.wins2}`;
+            row.appendChild(winsCell);
+
+            tbody.appendChild(row);
+        });
+    }
+
+    exportCSV() {
+        if (this.model.comparisons.length === 0) {
+            alert('No comparisons to export');
+            return;
+        }
+
+        // Sort comparisons lexicographically
+        const sortedComparisons = this.model.comparisons.map(comp => {
+            const combo1 = `${WINES[comp.wine1]}${SPICES[comp.spice1]}`;
+            const combo2 = `${WINES[comp.wine2]}${SPICES[comp.spice2]}`;
+
+            // Ensure lexicographic order
+            if (combo1 <= combo2) {
+                return {
+                    lhs: combo1,
+                    rhs: combo2,
+                    lhs_won: comp.winner === 1 ? 1 : 0
+                };
+            } else {
+                return {
+                    lhs: combo2,
+                    rhs: combo1,
+                    lhs_won: comp.winner === 2 ? 1 : 0
+                };
+            }
+        });
+
+        // Sort by lhs, then rhs
+        sortedComparisons.sort((a, b) => {
+            if (a.lhs !== b.lhs) return a.lhs.localeCompare(b.lhs);
+            return a.rhs.localeCompare(b.rhs);
+        });
+
+        // Generate CSV
+        let csv = 'lhs,rhs,lhs_won\n';
+        sortedComparisons.forEach(comp => {
+            csv += `${comp.lhs},${comp.rhs},${comp.lhs_won}\n`;
+        });
+
+        // Download CSV
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'wine_bandit_comparisons.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 }
 
