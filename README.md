@@ -51,6 +51,14 @@ P(i beats j) = 1 / (1 + exp(score_j - score_i))
 4. The model updates immediately with new scores and uncertainties
 5. Check the leaderboard to see which combinations are best
 
+### Performance Expectations
+
+- **After 20 comparisons**: Can identify clear winners and losers
+- **After 50 comparisons**: Reasonable rankings (60%+ accuracy)
+- **After 100 comparisons**: High-quality rankings (80%+ accuracy)
+
+See [PERFORMANCE.md](PERFORMANCE.md) for detailed analysis.
+
 ## Features
 
 - **Interactive Grid**: 3×4 grid for Wine (A-C) × Spice Mix (1-4)
@@ -64,7 +72,9 @@ P(i beats j) = 1 / (1 + exp(score_j - score_i))
 - `index.html`: Main application UI
 - `model.js`: Bayesian Bradley-Terry inference engine
 - `app.js`: Application logic and interaction handling
+- `test.js`: Comprehensive test suite (20 tests)
 - `README.md`: This file
+- `PERFORMANCE.md`: Performance analysis across sample sizes
 
 ## Technical Notes
 
