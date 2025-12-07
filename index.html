@@ -254,6 +254,17 @@
         .reset-button:hover:not(:disabled) {
             background: #c82333;
         }
+
+        .mode-toggle {
+            background: #28a745;
+            width: 100%;
+            margin-top: 15px;
+            font-size: 0.95em;
+        }
+
+        .mode-toggle:hover:not(:disabled) {
+            background: #218838;
+        }
     </style>
 </head>
 <body>
@@ -267,7 +278,7 @@
             <div class="grid-section">
                 <div class="instructions">
                     <strong>Instructions:</strong> Select two wine combinations to compare, then click the winner.
-                    The Bayesian model will update scores and uncertainties after each comparison.
+                    The Bayesian model will update probabilities after each comparison. Cells are colored by probability of being best (white = low, purple = high).
                 </div>
 
                 <div class="grid-container" id="grid">
@@ -299,6 +310,7 @@
                     </div>
                 </div>
 
+                <button class="mode-toggle" id="modeToggle">Mode: Global Best</button>
                 <button class="reset-button" id="resetBtn">Reset All Data</button>
             </div>
         </div>

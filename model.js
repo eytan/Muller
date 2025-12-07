@@ -303,6 +303,178 @@ class BayesianBradleyTerry {
     }
 
     /**
+     * Generate random normal sample (Box-Muller transform)
+     */
+    randomNormal() {
+        const u1 = Math.random();
+        const u2 = Math.random();
+        return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    }
+
+    /**
+     * Cholesky decomposition: find L such that L*L^T = A
+     * Returns lower triangular matrix L
+     */
+    choleskyDecomposition(A) {
+        const n = A.length;
+        const L = Array(n).fill(null).map(() => Array(n).fill(0));
+
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j <= i; j++) {
+                let sum = 0;
+                for (let k = 0; k < j; k++) {
+                    sum += L[i][k] * L[j][k];
+                }
+
+                if (i === j) {
+                    const val = A[i][i] - sum;
+                    L[i][j] = Math.sqrt(Math.max(val, 1e-10)); // Ensure positive
+                } else {
+                    L[i][j] = (A[i][j] - sum) / Math.max(L[j][j], 1e-10);
+                }
+            }
+        }
+
+        return L;
+    }
+
+    /**
+     * Compute probability that each combination is best using Monte Carlo sampling
+     * Returns array of probabilities (one per combination)
+     */
+    computeProbabilityBest(numSamples = 1000) {
+        const numCombos = this.numWines * this.numSpices;
+
+        // If no data, return uniform probabilities
+        if (this.comparisons.length === 0) {
+            return Array(numCombos).fill(1 / numCombos);
+        }
+
+        // Get covariance matrix from Hessian
+        const H = this.computeHessian();
+        const covMatrix = this.invertMatrix(H);
+
+        // Cholesky decomposition for sampling
+        let L;
+        try {
+            L = this.choleskyDecomposition(covMatrix);
+        } catch (e) {
+            // If Cholesky fails, fall back to diagonal approximation
+            L = Array(this.numParams).fill(null).map((_, i) =>
+                Array(this.numParams).fill(null).map((_, j) =>
+                    i === j ? Math.sqrt(Math.max(covMatrix[i][i], 0)) : 0
+                )
+            );
+        }
+
+        // Count how many times each combination is best
+        const counts = Array(numCombos).fill(0);
+
+        for (let sample = 0; sample < numSamples; sample++) {
+            // Sample from N(0, I)
+            const z = Array(this.numParams).fill(0).map(() => this.randomNormal());
+
+            // Transform to N(params, covMatrix) using params + L*z
+            const sampledParams = Array(this.numParams);
+            for (let i = 0; i < this.numParams; i++) {
+                let sum = this.params[i];
+                for (let j = 0; j < this.numParams; j++) {
+                    sum += L[i][j] * z[j];
+                }
+                sampledParams[i] = sum;
+            }
+
+            // Find which combination has max score in this sample
+            let maxScore = -Infinity;
+            let maxIdx = 0;
+
+            let idx = 0;
+            for (let w = 0; w < this.numWines; w++) {
+                for (let s = 0; s < this.numSpices; s++) {
+                    const score = sampledParams[w] + sampledParams[this.numWines + s];
+                    if (score > maxScore) {
+                        maxScore = score;
+                        maxIdx = idx;
+                    }
+                    idx++;
+                }
+            }
+
+            counts[maxIdx]++;
+        }
+
+        // Convert counts to probabilities
+        return counts.map(c => c / numSamples);
+    }
+
+    /**
+     * Compute probability that each combination beats a reference combination
+     * Returns array of probabilities
+     */
+    computeProbabilityBeatReference(refWine, refSpice, numSamples = 1000) {
+        const numCombos = this.numWines * this.numSpices;
+
+        // If no data, return 0.5 for all (except reference which is 0)
+        if (this.comparisons.length === 0) {
+            return Array(numCombos).fill(0.5).map((p, i) => {
+                const w = Math.floor(i / this.numSpices);
+                const s = i % this.numSpices;
+                return (w === refWine && s === refSpice) ? 0 : 0.5;
+            });
+        }
+
+        // Get covariance matrix
+        const H = this.computeHessian();
+        const covMatrix = this.invertMatrix(H);
+
+        // Cholesky decomposition
+        let L;
+        try {
+            L = this.choleskyDecomposition(covMatrix);
+        } catch (e) {
+            L = Array(this.numParams).fill(null).map((_, i) =>
+                Array(this.numParams).fill(null).map((_, j) =>
+                    i === j ? Math.sqrt(Math.max(covMatrix[i][i], 0)) : 0
+                )
+            );
+        }
+
+        // Count how many times each combination beats reference
+        const counts = Array(numCombos).fill(0);
+
+        for (let sample = 0; sample < numSamples; sample++) {
+            const z = Array(this.numParams).fill(0).map(() => this.randomNormal());
+
+            const sampledParams = Array(this.numParams);
+            for (let i = 0; i < this.numParams; i++) {
+                let sum = this.params[i];
+                for (let j = 0; j < this.numParams; j++) {
+                    sum += L[i][j] * z[j];
+                }
+                sampledParams[i] = sum;
+            }
+
+            // Reference score
+            const refScore = sampledParams[refWine] + sampledParams[this.numWines + refSpice];
+
+            // Check each combination
+            let idx = 0;
+            for (let w = 0; w < this.numWines; w++) {
+                for (let s = 0; s < this.numSpices; s++) {
+                    const score = sampledParams[w] + sampledParams[this.numWines + s];
+                    if (score > refScore) {
+                        counts[idx]++;
+                    }
+                    idx++;
+                }
+            }
+        }
+
+        // Convert to probabilities
+        return counts.map(c => c / numSamples);
+    }
+
+    /**
      * Reset the model
      */
     reset() {

@@ -10,6 +10,7 @@ class WineBanditApp {
     constructor() {
         this.model = new BayesianBradleyTerry(WINES.length, SPICES.length);
         this.selectedCells = [];
+        this.comparisonMode = 'global'; // 'global' or 'beats'
         this.init();
     }
 
@@ -199,30 +200,67 @@ class WineBanditApp {
     }
 
     updateDisplay() {
-        // Update grid cells with scores and uncertainties
+        // Compute probabilities
+        let probabilities;
+        if (this.comparisonMode === 'global' || this.selectedCells.length === 0) {
+            probabilities = this.model.computeProbabilityBest(1000);
+        } else {
+            // Show P(beats selected cell)
+            const ref = this.selectedCells[0];
+            probabilities = this.model.computeProbabilityBeatReference(ref.wine, ref.spice, 1000);
+        }
+
+        // Update grid cells with colors and probabilities
         const cells = document.querySelectorAll('.grid-cell');
         cells.forEach(cell => {
             const wine = parseInt(cell.dataset.wine);
             const spice = parseInt(cell.dataset.spice);
+            const idx = wine * SPICES.length + spice;
 
             const score = this.model.getScore(wine, spice);
-            const uncertainty = this.model.getUncertainty(wine, spice);
+            const prob = probabilities[idx];
 
+            // Update score display
             const scoreElem = cell.querySelector('.cell-score');
-            const uncertaintyElem = cell.querySelector('.cell-uncertainty');
-
             scoreElem.textContent = score.toFixed(2);
-            uncertaintyElem.textContent = `± ${uncertainty.toFixed(2)}`;
+
+            // Update probability display (shown in uncertainty slot)
+            const uncertaintyElem = cell.querySelector('.cell-uncertainty');
+            uncertaintyElem.textContent = `${(prob * 100).toFixed(1)}%`;
+
+            // Color cell by probability (white -> dark blue/purple)
+            const color = this.getProbabilityColor(prob);
+            cell.style.backgroundColor = color;
+
+            // Set text color for contrast
+            if (prob > 0.5) {
+                cell.style.color = 'white';
+            } else {
+                cell.style.color = '#333';
+            }
+
+            // Add title for hover tooltip
+            cell.title = `${WINES[wine]}${SPICES[spice]}\nScore: ${score.toFixed(2)}\nP(best): ${(prob * 100).toFixed(1)}%`;
         });
 
-        // Update leaderboard
-        this.updateLeaderboard();
+        // Update leaderboard with probabilities
+        this.updateLeaderboard(probabilities);
 
         // Update stats
         this.updateStats();
     }
 
-    updateLeaderboard() {
+    getProbabilityColor(prob) {
+        // White (0%) -> Dark Blue/Purple (100%)
+        // Using the app's purple theme
+        const r = Math.round(255 - (255 - 102) * prob);  // 255 -> 102
+        const g = Math.round(255 - (255 - 126) * prob);  // 255 -> 126
+        const b = Math.round(255 - (255 - 234) * prob);  // 255 -> 234
+
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    updateLeaderboard(probabilities) {
         const leaderboardList = document.getElementById('leaderboardList');
         leaderboardList.innerHTML = '';
 
@@ -231,6 +269,9 @@ class WineBanditApp {
         ranking.forEach((item, index) => {
             const div = document.createElement('div');
             div.className = 'leaderboard-item';
+
+            const idx = item.wine * SPICES.length + item.spice;
+            const prob = probabilities[idx];
 
             const rank = document.createElement('span');
             rank.className = 'leaderboard-rank';
@@ -242,16 +283,11 @@ class WineBanditApp {
 
             const score = document.createElement('span');
             score.className = 'leaderboard-score';
-            score.textContent = item.score.toFixed(2);
-
-            const uncertainty = document.createElement('div');
-            uncertainty.className = 'leaderboard-uncertainty';
-            uncertainty.textContent = `Uncertainty: ± ${item.uncertainty.toFixed(2)}`;
+            score.textContent = `${(prob * 100).toFixed(1)}% (${item.score.toFixed(2)})`;
 
             div.appendChild(rank);
             div.appendChild(name);
             div.appendChild(score);
-            div.appendChild(uncertainty);
 
             leaderboardList.appendChild(div);
         });
@@ -279,6 +315,15 @@ class WineBanditApp {
             if (confirm('Are you sure you want to reset all data?')) {
                 this.reset();
             }
+        });
+
+        const modeToggle = document.getElementById('modeToggle');
+        modeToggle.addEventListener('click', () => {
+            this.comparisonMode = this.comparisonMode === 'global' ? 'beats' : 'global';
+            modeToggle.textContent = this.comparisonMode === 'global'
+                ? 'Mode: Global Best'
+                : 'Mode: Beats Selected';
+            this.updateDisplay();
         });
     }
 
