@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wine Bandit - Bayesian Mulled Wine Comparison</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 30px;
+            padding: 30px;
+        }
+
+        .grid-section {
+            flex: 2;
+        }
+
+        .leaderboard-section {
+            flex: 1;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 80px repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .grid-header {
+            background: #667eea;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .grid-cell {
+            background: white;
+            border: 3px solid #e0e0e0;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .grid-cell:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .grid-cell.selected {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #764ba2;
+            transform: scale(1.05);
+        }
+
+        .grid-cell.winner {
+            animation: winPulse 0.5s ease;
+        }
+
+        @keyframes winPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .cell-label {
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }
+
+        .cell-score {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .cell-uncertainty {
+            font-size: 0.8em;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .controls {
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .leaderboard h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .leaderboard-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .leaderboard-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .leaderboard-rank {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+            display: inline-block;
+            width: 40px;
+        }
+
+        .leaderboard-name {
+            font-weight: bold;
+            display: inline-block;
+            width: 150px;
+        }
+
+        .leaderboard-score {
+            float: right;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .leaderboard-uncertainty {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .stats {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .stat-label {
+            color: #666;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .reset-button {
+            background: #dc3545;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .reset-button:hover:not(:disabled) {
+            background: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🍷 Wine Bandit</h1>
+            <p class="subtitle">Bayesian Mulled Wine Comparison Tool</p>
+        </header>
+
+        <div class="main-content">
+            <div class="grid-section">
+                <div class="instructions">
+                    <strong>Instructions:</strong> Select two wine combinations to compare, then click the winner.
+                    The Bayesian model will update scores and uncertainties after each comparison.
+                </div>
+
+                <div class="grid-container" id="grid">
+                    <!-- Grid will be generated by JavaScript -->
+                </div>
+
+                <div class="controls">
+                    <button id="submitBtn" disabled>Select Winner: Left</button>
+                </div>
+            </div>
+
+            <div class="leaderboard-section">
+                <div class="stats">
+                    <h2 style="margin-bottom: 15px; font-size: 1.3em;">Statistics</h2>
+                    <div class="stat-item">
+                        <span class="stat-label">Comparisons:</span>
+                        <span class="stat-value" id="numComparisons">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Most Uncertain:</span>
+                        <span class="stat-value" id="mostUncertain">-</span>
+                    </div>
+                </div>
+
+                <div class="leaderboard">
+                    <h2>Leaderboard</h2>
+                    <div id="leaderboardList">
+                        <!-- Leaderboard items will be generated by JavaScript -->
+                    </div>
+                </div>
+
+                <button class="reset-button" id="resetBtn">Reset All Data</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="model.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
