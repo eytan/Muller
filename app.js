@@ -62,7 +62,7 @@ class WineBanditApp {
 
                 const uncertainty = document.createElement('div');
                 uncertainty.className = 'cell-uncertainty';
-                uncertainty.textContent = '± 1.00';
+                uncertainty.textContent = '± 10.00';
                 cell.appendChild(uncertainty);
 
                 cell.addEventListener('click', () => this.handleCellClick(w, s, cell));
