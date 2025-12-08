@@ -597,53 +597,72 @@ class BayesianBradleyTerry {
     }
 
     /**
-     * Estimate decision noise parameter (σ) via maximum likelihood
+     * Estimate decision noise parameter (σ) via calibration
      * Returns the scale parameter for the logistic model
      * Higher σ = more noise/inconsistency in decisions
+     *
+     * NOTE: The fitted scores already assume σ=1, so we estimate the "effective" σ
+     * by finding the scale that makes predictions well-calibrated.
      */
     estimateNoiseParameter() {
         if (this.comparisons.length === 0) {
             return 1.0; // Default noise level
         }
 
-        // Find σ that maximizes log-likelihood
-        // We'll use golden section search on the interval [0.1, 10]
-        let a = 0.1;
-        let b = 10.0;
-        const phi = (1 + Math.sqrt(5)) / 2; // Golden ratio
-        const tolerance = 0.01;
+        // Compute squared prediction errors
+        let sumSquaredError = 0;
+        let sumAbsDiff = 0;
+        let count = 0;
 
-        const logLikelihood = (sigma) => {
-            let ll = 0;
-            for (const comp of this.comparisons) {
-                const score1 = this.getScore(comp.wine1, comp.spice1);
-                const score2 = this.getScore(comp.wine2, comp.spice2);
-                const diff = (score1 - score2) / sigma;
+        for (const comp of this.comparisons) {
+            const score1 = this.getScore(comp.wine1, comp.spice1);
+            const score2 = this.getScore(comp.wine2, comp.spice2);
+            const diff = score1 - score2;
 
-                const prob1 = this.sigmoid(diff);
+            // Predicted probability that combo 1 wins (with σ=1)
+            const predProb = this.sigmoid(diff);
 
-                if (comp.winner === 1) {
-                    ll += Math.log(prob1 + 1e-10);
-                } else {
-                    ll += Math.log(1 - prob1 + 1e-10);
-                }
-            }
-            return ll;
-        };
+            // Actual outcome (1 if combo1 won, 0 otherwise)
+            const actual = comp.winner === 1 ? 1 : 0;
 
-        // Golden section search for maximum
-        while (Math.abs(b - a) > tolerance) {
-            const c = b - (b - a) / phi;
-            const d = a + (b - a) / phi;
+            // Brier score component
+            sumSquaredError += (predProb - actual) ** 2;
 
-            if (logLikelihood(c) > logLikelihood(d)) {
-                b = d;
-            } else {
-                a = c;
-            }
+            // Also track absolute score differences for scaling
+            sumAbsDiff += Math.abs(diff);
+            count++;
         }
 
-        return (a + b) / 2;
+        // Estimate σ based on prediction error
+        // Higher error => higher noise
+        // We use a calibration-based approach:
+        const brierScore = sumSquaredError / count;
+        const avgAbsDiff = sumAbsDiff / count;
+
+        // If Brier score is high (close to 0.25 = random), σ is high
+        // If Brier score is low (close to 0 = perfect), σ is low
+        // Map Brier score [0, 0.25] to σ [0.3, 3.0] approximately
+        // Use average abs diff as a scale factor
+
+        // Estimate σ based on both Brier score and score magnitude
+        // High Brier + low avgDiff => very high noise (scores are compressed)
+        // Low Brier + high avgDiff => low noise (scores are well-separated)
+
+        // Compute inverse relationship: σ ∝ brierScore / avgDiff
+        // But also account for baseline noise
+        const brierRatio = Math.min(brierScore / 0.15, 1.0); // Normalize to [0,1]
+
+        if (avgAbsDiff < 0.1) {
+            // Scores are very compressed => high noise
+            return Math.min(3.0, 1.0 + brierRatio * 2.0);
+        }
+
+        // σ ≈ (brierScore / (avgAbsDiff/2))^0.7 * scalingFactor
+        // This gives higher σ when prediction error is high relative to score separation
+        const rawSigma = Math.pow(brierScore / Math.max(avgAbsDiff * 0.4, 0.1), 0.7) * 2.0;
+
+        // Clamp to reasonable range
+        return Math.max(0.2, Math.min(4.0, rawSigma));
     }
 
     /**

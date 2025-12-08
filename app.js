@@ -206,12 +206,7 @@ class WineBanditApp {
             const color = this.getProbabilityColor(globalProb);
             cell.style.backgroundColor = color;
 
-            // Set text color for contrast
-            if (globalProb > 0.5) {
-                cell.style.color = 'white';
-            } else {
-                cell.style.color = '#333';
-            }
+            // Text color is handled by CSS - default is dark, white only when selected
         });
 
         // Update cell labels based on mode
