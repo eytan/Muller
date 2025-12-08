@@ -303,6 +303,34 @@
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
 
+        .tasting-notes {
+            margin-top: 15px;
+        }
+
+        .tasting-notes label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .tasting-notes textarea {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9em;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        .tasting-notes textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         .leaderboard-header {
             display: flex;
             justify-content: space-between;
@@ -430,6 +458,10 @@
                         <button id="comparisonBtn1" class="comparison-btn empty">?</button>
                         <button id="comparisonBtn2" class="comparison-btn empty">?</button>
                     </div>
+                    <div class="tasting-notes">
+                        <label for="tastingNotes">Tasting Notes (optional):</label>
+                        <textarea id="tastingNotes" placeholder="Add notes about this comparison..." rows="2"></textarea>
+                    </div>
                 </div>
             </div>
 
@@ -459,7 +491,6 @@
                     </div>
                 </div>
 
-                <button class="mode-toggle" id="modeToggle">Global Best</button>
                 <button class="reset-button" id="resetBtn">Reset All Data</button>
             </div>
         </div>

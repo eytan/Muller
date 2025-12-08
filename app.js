@@ -10,9 +10,8 @@ class WineBanditApp {
     constructor() {
         this.model = new BayesianBradleyTerry(WINES.length, SPICES.length);
         this.selectedCells = [];
-        this.comparisonMode = 'global'; // 'global' or 'beats'
         this.leaderboardView = 'arms'; // 'arms' or 'factors'
-        this.nextButtonSlot = 0; // 0 or 1 for round-robin selection
+        this.nextButtonSlot = 0; // 0 or 1 for selection
         this.init();
     }
 
@@ -95,19 +94,22 @@ class WineBanditApp {
             this.selectedCells = [null, null];
         }
 
-        // Assign to next button slot (round robin)
-        const targetSlot = this.nextButtonSlot;
-
-        // Remove previous selection in this slot if exists
-        if (this.selectedCells[targetSlot]) {
-            this.selectedCells[targetSlot].cell.classList.remove('selected');
+        // If both slots are already full, clear both and start fresh
+        if (this.selectedCells[0] && this.selectedCells[1]) {
+            this.selectedCells[0].cell.classList.remove('selected');
+            this.selectedCells[1].cell.classList.remove('selected');
+            this.selectedCells = [null, null];
+            this.nextButtonSlot = 0;
         }
+
+        // Assign to next button slot
+        const targetSlot = this.nextButtonSlot;
 
         // Assign new selection
         this.selectedCells[targetSlot] = { wine, spice, cell };
         cell.classList.add('selected');
 
-        // Move to next slot (round robin)
+        // Move to next slot
         this.nextButtonSlot = (this.nextButtonSlot + 1) % 2;
 
         // Update button display and cell labels
@@ -142,10 +144,8 @@ class WineBanditApp {
             btn2.onclick = null;
         }
 
-        // Update cell labels if in beats mode
-        if (this.comparisonMode === 'beats') {
-            this.updateCellLabels();
-        }
+        // Update cell labels based on what's selected
+        this.updateCellLabels();
     }
 
     submitComparison(winner) {
@@ -159,18 +159,24 @@ class WineBanditApp {
         winnerCell.classList.add('winner');
         setTimeout(() => winnerCell.classList.remove('winner'), 500);
 
+        // Get tasting notes
+        const notesField = document.getElementById('tastingNotes');
+        const notes = notesField.value.trim();
+
         // Submit to model
         this.model.addComparison(
             cell1.wine, cell1.spice,
             cell2.wine, cell2.spice,
-            winner
+            winner,
+            notes
         );
 
-        // Clear selection
+        // Clear selection and notes
         cell1.cell.classList.remove('selected');
         cell2.cell.classList.remove('selected');
         this.selectedCells = [null, null];
         this.nextButtonSlot = 0;
+        notesField.value = '';
 
         // Update display, buttons, and comparison table
         this.updateDisplay();
@@ -220,27 +226,31 @@ class WineBanditApp {
 
     updateCellLabels() {
         const cells = document.querySelectorAll('.grid-cell');
-        const hasBothSelections = this.selectedCells.length > 1 &&
-                                  this.selectedCells[0] && this.selectedCells[1];
+        const hasLHS = this.selectedCells.length > 0 && this.selectedCells[0];
 
-        if (this.comparisonMode === 'beats' && hasBothSelections) {
-            // In beats mode with both cells selected, show P(X > Y)
-            const cell1 = this.selectedCells[0];
-            const cell2 = this.selectedCells[1];
-            const combo1 = `${WINES[cell1.wine]}${SPICES[cell1.spice]}`;
-            const combo2 = `${WINES[cell2.wine]}${SPICES[cell2.spice]}`;
+        if (hasLHS) {
+            // LHS is selected: show P(each cell > LHS)
+            const lhs = this.selectedCells[0];
+            const lhsCombo = `${WINES[lhs.wine]}${SPICES[lhs.spice]}`;
 
-            // Compute probability that cell1 beats cell2
-            const prob1beats2 = this.model.computeProbabilityBeatReference(cell2.wine, cell2.spice, 1000);
-            const idx1 = cell1.wine * SPICES.length + cell1.spice;
-            const p = prob1beats2[idx1];
+            // Compute probability that each cell beats LHS
+            const beatLhsProbs = this.model.computeProbabilityBeatReference(lhs.wine, lhs.spice, 1000);
 
             cells.forEach(cell => {
+                const wine = parseInt(cell.dataset.wine);
+                const spice = parseInt(cell.dataset.spice);
+                const idx = wine * SPICES.length + spice;
+                const prob = beatLhsProbs[idx];
+
                 const uncertaintyElem = cell.querySelector('.cell-uncertainty');
-                uncertaintyElem.textContent = `P(${combo1} > ${combo2}) = ${(p * 100).toFixed(1)}%`;
+                uncertaintyElem.textContent = `${(prob * 100).toFixed(1)}%`;
+
+                // Update tooltip
+                const combo = `${WINES[wine]}${SPICES[spice]}`;
+                cell.title = `${combo}\nScore: ${this.model.getScore(wine, spice).toFixed(2)}\nP(${combo} > ${lhsCombo}): ${(prob * 100).toFixed(1)}%`;
             });
         } else {
-            // In global mode, show P(best) for each cell
+            // Nothing selected: show unconditional P(best) for each cell
             const globalProbs = this.model.computeProbabilityBest(1000);
             cells.forEach(cell => {
                 const wine = parseInt(cell.dataset.wine);
@@ -258,11 +268,39 @@ class WineBanditApp {
     }
 
     getProbabilityColor(prob) {
-        // White (0%) -> Dark Blue/Purple (100%)
-        // Using the app's purple theme
-        const r = Math.round(255 - (255 - 102) * prob);  // 255 -> 102
-        const g = Math.round(255 - (255 - 126) * prob);  // 255 -> 126
-        const b = Math.round(255 - (255 - 234) * prob);  // 255 -> 234
+        // Create 5 distinct color bands from white to deep saturated purple
+        // Define 5 color stops
+        const colors = [
+            { r: 255, g: 255, b: 255 },  // 0%: White
+            { r: 220, g: 225, b: 245 },  // 25%: Very light purple
+            { r: 170, g: 185, b: 240 },  // 50%: Light purple
+            { r: 102, g: 126, b: 234 },  // 75%: Medium purple (#667eea)
+            { r: 75, g: 50, b: 180 }     // 100%: Deep saturated purple
+        ];
+
+        // Determine which band we're in
+        let lowerIdx, upperIdx, localProb;
+        if (prob <= 0.25) {
+            lowerIdx = 0; upperIdx = 1;
+            localProb = prob / 0.25;
+        } else if (prob <= 0.5) {
+            lowerIdx = 1; upperIdx = 2;
+            localProb = (prob - 0.25) / 0.25;
+        } else if (prob <= 0.75) {
+            lowerIdx = 2; upperIdx = 3;
+            localProb = (prob - 0.5) / 0.25;
+        } else {
+            lowerIdx = 3; upperIdx = 4;
+            localProb = (prob - 0.75) / 0.25;
+        }
+
+        // Interpolate between the two colors
+        const lower = colors[lowerIdx];
+        const upper = colors[upperIdx];
+
+        const r = Math.round(lower.r + (upper.r - lower.r) * localProb);
+        const g = Math.round(lower.g + (upper.g - lower.g) * localProb);
+        const b = Math.round(lower.b + (upper.b - lower.b) * localProb);
 
         return `rgb(${r}, ${g}, ${b})`;
     }
@@ -423,15 +461,6 @@ class WineBanditApp {
             }
         });
 
-        const modeToggle = document.getElementById('modeToggle');
-        modeToggle.addEventListener('click', () => {
-            this.comparisonMode = this.comparisonMode === 'global' ? 'beats' : 'global';
-            modeToggle.textContent = this.comparisonMode === 'global' ? 'Global Best' : 'Beats Selected';
-
-            // Only update cell labels, not the entire display
-            this.updateCellLabels();
-        });
-
         // View toggle tabs
         const viewBestArm = document.getElementById('viewBestArm');
         const viewFactors = document.getElementById('viewFactors');
@@ -554,13 +583,15 @@ class WineBanditApp {
                 return {
                     lhs: combo1,
                     rhs: combo2,
-                    lhs_won: comp.winner === 1 ? 1 : 0
+                    lhs_won: comp.winner === 1 ? 1 : 0,
+                    notes: comp.notes || ''
                 };
             } else {
                 return {
                     lhs: combo2,
                     rhs: combo1,
-                    lhs_won: comp.winner === 2 ? 1 : 0
+                    lhs_won: comp.winner === 2 ? 1 : 0,
+                    notes: comp.notes || ''
                 };
             }
         });
@@ -572,9 +603,14 @@ class WineBanditApp {
         });
 
         // Generate CSV
-        let csv = 'lhs,rhs,lhs_won\n';
+        let csv = 'lhs,rhs,lhs_won,notes\n';
         sortedComparisons.forEach(comp => {
-            csv += `${comp.lhs},${comp.rhs},${comp.lhs_won}\n`;
+            // Escape quotes in notes and wrap in quotes if contains comma or quote
+            let notes = comp.notes.replace(/"/g, '""');
+            if (notes.includes(',') || notes.includes('"') || notes.includes('\n')) {
+                notes = `"${notes}"`;
+            }
+            csv += `${comp.lhs},${comp.rhs},${comp.lhs_won},${notes}\n`;
         });
 
         // Download CSV

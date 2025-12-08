@@ -47,9 +47,9 @@ class BayesianBradleyTerry {
     /**
      * Add a comparison result
      */
-    addComparison(wine1, spice1, wine2, spice2, winner) {
+    addComparison(wine1, spice1, wine2, spice2, winner, notes = '') {
         this.comparisons.push({
-            wine1, spice1, wine2, spice2, winner
+            wine1, spice1, wine2, spice2, winner, notes
         });
         this.fit();
     }
