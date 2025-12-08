@@ -576,6 +576,17 @@ class WineBanditApp {
             mostUncertainElem.textContent =
                 `${WINES[mostUncertain.wine]}${SPICES[mostUncertain.spice]} (± ${mostUncertain.uncertainty.toFixed(2)})`;
         }
+
+        // Compute and display decision consistency and noise parameter
+        if (this.model.comparisons.length > 0) {
+            const consistency = this.model.computeDecisionConsistency();
+            const noise = this.model.estimateNoiseParameter();
+
+            const consistencyElem = document.getElementById('decisionConsistency');
+            if (consistencyElem) {
+                consistencyElem.textContent = `${(consistency * 100).toFixed(1)}% (σ = ${noise.toFixed(2)})`;
+            }
+        }
     }
 
     attachEventListeners() {

@@ -568,6 +568,85 @@ class BayesianBradleyTerry {
     }
 
     /**
+     * Compute decision consistency: average predicted probability of actual winner
+     * Returns a value between 0 and 1 (higher = more consistent decisions)
+     */
+    computeDecisionConsistency() {
+        if (this.comparisons.length === 0) {
+            return 1.0; // Perfect consistency with no data
+        }
+
+        let totalProb = 0;
+        for (const comp of this.comparisons) {
+            const score1 = this.getScore(comp.wine1, comp.spice1);
+            const score2 = this.getScore(comp.wine2, comp.spice2);
+            const diff = score1 - score2;
+
+            // Probability that combo 1 wins
+            const prob1 = this.sigmoid(diff);
+
+            // Add the probability of the actual winner
+            if (comp.winner === 1) {
+                totalProb += prob1;
+            } else {
+                totalProb += (1 - prob1);
+            }
+        }
+
+        return totalProb / this.comparisons.length;
+    }
+
+    /**
+     * Estimate decision noise parameter (σ) via maximum likelihood
+     * Returns the scale parameter for the logistic model
+     * Higher σ = more noise/inconsistency in decisions
+     */
+    estimateNoiseParameter() {
+        if (this.comparisons.length === 0) {
+            return 1.0; // Default noise level
+        }
+
+        // Find σ that maximizes log-likelihood
+        // We'll use golden section search on the interval [0.1, 10]
+        let a = 0.1;
+        let b = 10.0;
+        const phi = (1 + Math.sqrt(5)) / 2; // Golden ratio
+        const tolerance = 0.01;
+
+        const logLikelihood = (sigma) => {
+            let ll = 0;
+            for (const comp of this.comparisons) {
+                const score1 = this.getScore(comp.wine1, comp.spice1);
+                const score2 = this.getScore(comp.wine2, comp.spice2);
+                const diff = (score1 - score2) / sigma;
+
+                const prob1 = this.sigmoid(diff);
+
+                if (comp.winner === 1) {
+                    ll += Math.log(prob1 + 1e-10);
+                } else {
+                    ll += Math.log(1 - prob1 + 1e-10);
+                }
+            }
+            return ll;
+        };
+
+        // Golden section search for maximum
+        while (Math.abs(b - a) > tolerance) {
+            const c = b - (b - a) / phi;
+            const d = a + (b - a) / phi;
+
+            if (logLikelihood(c) > logLikelihood(d)) {
+                b = d;
+            } else {
+                a = c;
+            }
+        }
+
+        return (a + b) / 2;
+    }
+
+    /**
      * Reset the model
      */
     reset() {
