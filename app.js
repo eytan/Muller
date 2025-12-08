@@ -3,8 +3,8 @@
  * UI logic and interaction handling
  */
 
-const WINES = ['A', 'B', 'C'];
-const SPICES = ['1', '2', '3', '4'];
+const WINES = CONFIG.WINES;
+const SPICES = CONFIG.SPICES;
 
 class WineBanditApp {
     constructor() {
@@ -485,6 +485,17 @@ class WineBanditApp {
             e.preventDefault();
             this.exportCSV();
         });
+
+        // CSV import
+        const importCsv = document.getElementById('importCsv');
+        importCsv.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                this.importCSV(file);
+                // Reset file input so same file can be imported again if needed
+                e.target.value = '';
+            }
+        });
     }
 
     reset() {
@@ -623,6 +634,124 @@ class WineBanditApp {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
+
+    importCSV(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const csv = e.target.result;
+                const lines = csv.split('\n').filter(line => line.trim());
+
+                if (lines.length < 2) {
+                    alert('CSV file is empty or invalid');
+                    return;
+                }
+
+                // Parse header
+                const header = lines[0].toLowerCase().trim();
+                if (!header.includes('lhs') || !header.includes('rhs') || !header.includes('lhs_won')) {
+                    alert('CSV must have columns: lhs, rhs, lhs_won, notes');
+                    return;
+                }
+
+                // Reset model
+                this.model.reset();
+                this.selectedCells = [null, null];
+                this.nextButtonSlot = 0;
+
+                // Parse each row
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    // Simple CSV parser (handles quoted fields)
+                    const row = this.parseCSVRow(line);
+
+                    if (row.length < 3) continue;
+
+                    const lhs = row[0].trim();
+                    const rhs = row[1].trim();
+                    const lhsWon = parseInt(row[2].trim());
+                    const notes = row.length > 3 ? row[3] : '';
+
+                    // Parse combo strings (e.g., "A1" -> wine=0, spice=0)
+                    const lhsParsed = this.parseCombo(lhs);
+                    const rhsParsed = this.parseCombo(rhs);
+
+                    if (!lhsParsed || !rhsParsed) {
+                        console.warn(`Skipping invalid row: ${line}`);
+                        continue;
+                    }
+
+                    // Add comparison (winner is 1 if lhs won, 2 if rhs won)
+                    const winner = lhsWon === 1 ? 1 : 2;
+                    this.model.addComparison(
+                        lhsParsed.wine, lhsParsed.spice,
+                        rhsParsed.wine, rhsParsed.spice,
+                        winner,
+                        notes
+                    );
+                }
+
+                // Update display
+                this.updateDisplay();
+                this.updateComparisonButtons();
+                this.updateComparisonTable();
+
+                alert(`Successfully imported ${this.model.comparisons.length} comparisons`);
+            } catch (error) {
+                alert(`Error importing CSV: ${error.message}`);
+                console.error(error);
+            }
+        };
+
+        reader.readAsText(file);
+    }
+
+    parseCSVRow(line) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+
+            if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    // Escaped quote
+                    current += '"';
+                    i++;
+                } else {
+                    // Toggle quotes
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                // End of field
+                result.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+
+        result.push(current);
+        return result;
+    }
+
+    parseCombo(combo) {
+        // Parse "A1" -> {wine: 0, spice: 0}
+        if (!combo || combo.length < 2) return null;
+
+        const wineLetter = combo[0].toUpperCase();
+        const spiceNumber = combo.substring(1);
+
+        const wineIdx = WINES.indexOf(wineLetter);
+        const spiceIdx = SPICES.indexOf(spiceNumber);
+
+        if (wineIdx === -1 || spiceIdx === -1) return null;
+
+        return { wine: wineIdx, spice: spiceIdx };
     }
 }
 
