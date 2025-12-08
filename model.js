@@ -47,9 +47,10 @@ class BayesianBradleyTerry {
     /**
      * Add a comparison result
      */
-    addComparison(wine1, spice1, wine2, spice2, winner, notes = '') {
+    addComparison(wine1, spice1, wine2, spice2, winner, notes = '', timestamp = null) {
         this.comparisons.push({
-            wine1, spice1, wine2, spice2, winner, notes
+            wine1, spice1, wine2, spice2, winner, notes,
+            timestamp: timestamp || new Date().toISOString()
         });
         this.fit();
     }

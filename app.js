@@ -224,9 +224,65 @@ class WineBanditApp {
         this.updateStats();
     }
 
+    computeWinLossCounts() {
+        // Compute win/loss counts for each combination
+        const counts = {};
+        for (let w = 0; w < WINES.length; w++) {
+            for (let s = 0; s < SPICES.length; s++) {
+                const key = `${w},${s}`;
+                counts[key] = { wins: 0, losses: 0 };
+            }
+        }
+
+        this.model.comparisons.forEach(comp => {
+            const key1 = `${comp.wine1},${comp.spice1}`;
+            const key2 = `${comp.wine2},${comp.spice2}`;
+
+            if (comp.winner === 1) {
+                counts[key1].wins++;
+                counts[key2].losses++;
+            } else {
+                counts[key2].wins++;
+                counts[key1].losses++;
+            }
+        });
+
+        return counts;
+    }
+
+    computeFactorWinLossCounts() {
+        // Compute win/loss counts for each wine and spice
+        const wineCounts = {};
+        const spiceCounts = {};
+
+        for (let w = 0; w < WINES.length; w++) {
+            wineCounts[w] = { wins: 0, losses: 0 };
+        }
+        for (let s = 0; s < SPICES.length; s++) {
+            spiceCounts[s] = { wins: 0, losses: 0 };
+        }
+
+        this.model.comparisons.forEach(comp => {
+            if (comp.winner === 1) {
+                wineCounts[comp.wine1].wins++;
+                wineCounts[comp.wine2].losses++;
+                spiceCounts[comp.spice1].wins++;
+                spiceCounts[comp.spice2].losses++;
+            } else {
+                wineCounts[comp.wine2].wins++;
+                wineCounts[comp.wine1].losses++;
+                spiceCounts[comp.spice2].wins++;
+                spiceCounts[comp.spice1].losses++;
+            }
+        });
+
+        return { wineCounts, spiceCounts };
+    }
+
     updateCellLabels() {
         const cells = document.querySelectorAll('.grid-cell');
         const hasLHS = this.selectedCells.length > 0 && this.selectedCells[0];
+        const winLossCounts = this.computeWinLossCounts();
 
         if (hasLHS) {
             // LHS is selected: show P(each cell > LHS)
@@ -245,9 +301,25 @@ class WineBanditApp {
                 const uncertaintyElem = cell.querySelector('.cell-uncertainty');
                 uncertaintyElem.textContent = `${(prob * 100).toFixed(1)}%`;
 
-                // Update tooltip
+                // Update tooltip with win/loss counts
                 const combo = `${WINES[wine]}${SPICES[spice]}`;
-                cell.title = `${combo}\nScore: ${this.model.getScore(wine, spice).toFixed(2)}\nP(${combo} > ${lhsCombo}): ${(prob * 100).toFixed(1)}%`;
+                const key = `${wine},${spice}`;
+                const counts = winLossCounts[key];
+                cell.title = `${combo}\nScore: ${this.model.getScore(wine, spice).toFixed(2)}\nP(${combo} > ${lhsCombo}): ${(prob * 100).toFixed(1)}%\nWins: ${counts.wins} | Losses: ${counts.losses}`;
+
+                // Grey out cells with no comparison data
+                const labelElem = cell.querySelector('.cell-label');
+                const scoreElem = cell.querySelector('.cell-score');
+                if (counts.wins + counts.losses === 0) {
+                    labelElem.style.color = '#777';
+                    scoreElem.style.color = '#777';
+                    uncertaintyElem.style.color = '#777';
+                } else {
+                    // Reset to default (will be overridden by global color logic)
+                    labelElem.style.color = '';
+                    scoreElem.style.color = '';
+                    uncertaintyElem.style.color = '';
+                }
             });
         } else {
             // Nothing selected: show unconditional P(best) for each cell
@@ -261,8 +333,25 @@ class WineBanditApp {
                 const uncertaintyElem = cell.querySelector('.cell-uncertainty');
                 uncertaintyElem.textContent = `${(prob * 100).toFixed(1)}%`;
 
-                // Update tooltip
-                cell.title = `${WINES[wine]}${SPICES[spice]}\nScore: ${this.model.getScore(wine, spice).toFixed(2)}\nP(best): ${(prob * 100).toFixed(1)}%`;
+                // Update tooltip with win/loss counts
+                const combo = `${WINES[wine]}${SPICES[spice]}`;
+                const key = `${wine},${spice}`;
+                const counts = winLossCounts[key];
+                cell.title = `${combo}\nScore: ${this.model.getScore(wine, spice).toFixed(2)}\nP(best): ${(prob * 100).toFixed(1)}%\nWins: ${counts.wins} | Losses: ${counts.losses}`;
+
+                // Grey out cells with no comparison data
+                const labelElem = cell.querySelector('.cell-label');
+                const scoreElem = cell.querySelector('.cell-score');
+                if (counts.wins + counts.losses === 0) {
+                    labelElem.style.color = '#777';
+                    scoreElem.style.color = '#777';
+                    uncertaintyElem.style.color = '#777';
+                } else {
+                    // Reset to default (will be overridden by global color logic)
+                    labelElem.style.color = '';
+                    scoreElem.style.color = '';
+                    uncertaintyElem.style.color = '';
+                }
             });
         }
     }
@@ -318,6 +407,7 @@ class WineBanditApp {
         leaderboardList.innerHTML = '';
 
         const ranking = this.model.getRanking();
+        const winLossCounts = this.computeWinLossCounts();
 
         ranking.forEach((item, index) => {
             const div = document.createElement('div');
@@ -338,6 +428,18 @@ class WineBanditApp {
             score.className = 'leaderboard-score';
             score.textContent = `${(prob * 100).toFixed(1)}% (${item.score.toFixed(2)})`;
 
+            // Add tooltip with win/loss counts
+            const key = `${item.wine},${item.spice}`;
+            const counts = winLossCounts[key];
+            div.title = `${WINES[item.wine]}${SPICES[item.spice]}\nP(best): ${(prob * 100).toFixed(1)}%\nScore: ${item.score.toFixed(2)}\nWins: ${counts.wins} | Losses: ${counts.losses}`;
+
+            // Grey out items with no comparison data
+            if (counts.wins + counts.losses === 0) {
+                name.style.color = '#777';
+                score.style.color = '#777';
+                rank.style.color = '#999';
+            }
+
             div.appendChild(rank);
             div.appendChild(name);
             div.appendChild(score);
@@ -353,6 +455,7 @@ class WineBanditApp {
         // Compute factor probabilities
         const wineProbs = this.model.computeProbabilityBestWine(1000);
         const spiceProbs = this.model.computeProbabilityBestSpice(1000);
+        const { wineCounts, spiceCounts } = this.computeFactorWinLossCounts();
 
         // Wine section
         const wineSection = document.createElement('div');
@@ -385,6 +488,17 @@ class WineBanditApp {
             const score = document.createElement('span');
             score.className = 'leaderboard-score';
             score.textContent = `${(item.prob * 100).toFixed(1)}% (${item.effect.toFixed(2)})`;
+
+            // Add tooltip with win/loss counts
+            const counts = wineCounts[item.wine];
+            div.title = `Wine ${WINES[item.wine]}\nP(best wine): ${(item.prob * 100).toFixed(1)}%\nEffect: ${item.effect.toFixed(2)}\nWins: ${counts.wins} | Losses: ${counts.losses}`;
+
+            // Grey out wines with no comparison data
+            if (counts.wins + counts.losses === 0) {
+                name.style.color = '#777';
+                score.style.color = '#777';
+                rank.style.color = '#999';
+            }
 
             div.appendChild(rank);
             div.appendChild(name);
@@ -426,6 +540,17 @@ class WineBanditApp {
             const score = document.createElement('span');
             score.className = 'leaderboard-score';
             score.textContent = `${(item.prob * 100).toFixed(1)}% (${item.effect.toFixed(2)})`;
+
+            // Add tooltip with win/loss counts
+            const counts = spiceCounts[item.spice];
+            div.title = `Spice ${SPICES[item.spice]}\nP(best spice): ${(item.prob * 100).toFixed(1)}%\nEffect: ${item.effect.toFixed(2)}\nWins: ${counts.wins} | Losses: ${counts.losses}`;
+
+            // Grey out spices with no comparison data
+            if (counts.wins + counts.losses === 0) {
+                name.style.color = '#777';
+                score.style.color = '#777';
+                rank.style.color = '#999';
+            }
 
             div.appendChild(rank);
             div.appendChild(name);
@@ -521,7 +646,7 @@ class WineBanditApp {
         if (this.model.comparisons.length === 0) {
             const row = document.createElement('tr');
             const cell = document.createElement('td');
-            cell.colSpan = 2;
+            cell.colSpan = 3;
             cell.textContent = 'No comparisons yet';
             cell.style.textAlign = 'center';
             cell.style.color = '#999';
@@ -550,11 +675,16 @@ class WineBanditApp {
             }
 
             if (!pairCounts.has(key)) {
-                pairCounts.set(key, { wins1: 0, wins2: 0, combo1, combo2 });
+                pairCounts.set(key, { wins1: 0, wins2: 0, lastTimestamp: comp.timestamp });
             }
             const counts = pairCounts.get(key);
             counts.wins1 += winner1Count;
             counts.wins2 += winner2Count;
+
+            // Update to most recent timestamp
+            if (comp.timestamp > counts.lastTimestamp) {
+                counts.lastTimestamp = comp.timestamp;
+            }
         });
 
         // Sort keys lexicographically
@@ -562,7 +692,6 @@ class WineBanditApp {
 
         sortedKeys.forEach(key => {
             const counts = pairCounts.get(key);
-            const [combo1, combo2] = key.split(' vs ');
 
             const row = document.createElement('tr');
 
@@ -573,6 +702,13 @@ class WineBanditApp {
             const winsCell = document.createElement('td');
             winsCell.textContent = `${counts.wins1}-${counts.wins2}`;
             row.appendChild(winsCell);
+
+            const timestampCell = document.createElement('td');
+            const date = new Date(counts.lastTimestamp);
+            timestampCell.textContent = date.toLocaleString();
+            timestampCell.style.fontSize = '0.9em';
+            timestampCell.style.color = '#666';
+            row.appendChild(timestampCell);
 
             tbody.appendChild(row);
         });
@@ -595,14 +731,16 @@ class WineBanditApp {
                     lhs: combo1,
                     rhs: combo2,
                     lhs_won: comp.winner === 1 ? 1 : 0,
-                    notes: comp.notes || ''
+                    notes: comp.notes || '',
+                    timestamp: comp.timestamp
                 };
             } else {
                 return {
                     lhs: combo2,
                     rhs: combo1,
                     lhs_won: comp.winner === 2 ? 1 : 0,
-                    notes: comp.notes || ''
+                    notes: comp.notes || '',
+                    timestamp: comp.timestamp
                 };
             }
         });
@@ -614,14 +752,14 @@ class WineBanditApp {
         });
 
         // Generate CSV
-        let csv = 'lhs,rhs,lhs_won,notes\n';
+        let csv = 'lhs,rhs,lhs_won,notes,timestamp\n';
         sortedComparisons.forEach(comp => {
             // Escape quotes in notes and wrap in quotes if contains comma or quote
             let notes = comp.notes.replace(/"/g, '""');
             if (notes.includes(',') || notes.includes('"') || notes.includes('\n')) {
                 notes = `"${notes}"`;
             }
-            csv += `${comp.lhs},${comp.rhs},${comp.lhs_won},${notes}\n`;
+            csv += `${comp.lhs},${comp.rhs},${comp.lhs_won},${notes},${comp.timestamp}\n`;
         });
 
         // Download CSV
@@ -674,6 +812,7 @@ class WineBanditApp {
                     const rhs = row[1].trim();
                     const lhsWon = parseInt(row[2].trim());
                     const notes = row.length > 3 ? row[3] : '';
+                    const timestamp = row.length > 4 ? row[4].trim() : null;
 
                     // Parse combo strings (e.g., "A1" -> wine=0, spice=0)
                     const lhsParsed = this.parseCombo(lhs);
@@ -690,7 +829,8 @@ class WineBanditApp {
                         lhsParsed.wine, lhsParsed.spice,
                         rhsParsed.wine, rhsParsed.spice,
                         winner,
-                        notes
+                        notes,
+                        timestamp
                     );
                 }
 
