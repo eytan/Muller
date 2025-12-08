@@ -357,14 +357,14 @@ class WineBanditApp {
     }
 
     getProbabilityColor(prob) {
-        // Create 5 distinct color bands from white to bright purple
-        // Define 5 color stops matching the Ax.dev gradient
+        // Create 5 distinct color bands from white to deep purple
+        // Define 5 color stops matching the darker gradient
         const colors = [
             { r: 255, g: 255, b: 255 },  // 0%: White
-            { r: 220, g: 220, b: 245 },  // 25%: Very light lavender
-            { r: 160, g: 155, b: 238 },  // 50%: Light indigo
-            { r: 79, g: 70, b: 229 },    // 75%: Bright indigo (#4f46e5)
-            { r: 168, g: 85, b: 247 }    // 100%: Bright purple (#a855f7)
+            { r: 220, g: 220, b: 245 },  // 25%: Very light purple
+            { r: 170, g: 180, b: 240 },  // 50%: Light purple/blue
+            { r: 79, g: 96, b: 213 },    // 75%: Darker blue (#4f60d5)
+            { r: 93, g: 53, b: 133 }     // 100%: Deep purple (#5d3585)
         ];
 
         // Determine which band we're in
