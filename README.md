@@ -1,4 +1,4 @@
-# Wine Bandit - Bayesian Mulled Wine Comparison Tool
+# Wine Bandit - A CAS NYC Bayesian Mulled Wine Comparator
 
 A web application for finding the best mulled wine recipe using Bayesian dueling bandits with factorial structure.
 
@@ -99,14 +99,6 @@ The Laplace approximation works as follows:
 - Checks for singular matrices in Hessian inversion
 - Falls back to diagonal approximation if needed
 
-## Future Enhancements
-
-Possible extensions:
-- Add interaction terms: `score = wine + spice + wine×spice`
-- Thompson sampling for suggesting which comparisons to make next
-- Export/import data as JSON
-- Visualize uncertainty over time
-- Add more wines/spices dynamically
 
 ## License
 
