@@ -1,19 +1,30 @@
 /**
- * Bayesian Bradley-Terry Model with Factorial Structure
+ * Bayesian Bradley-Terry Model with Factorial or Independent Structure
  * Uses Laplace Approximation for uncertainty estimation
  */
 
 class BayesianBradleyTerry {
-    constructor(numWines = 3, numSpices = 4) {
+    constructor(numWines = 3, numSpices = 4, modelType = 'factorial') {
         this.numWines = numWines;
         this.numSpices = numSpices;
-        this.numParams = numWines + numSpices;
+        this.modelType = modelType; // 'factorial' or 'independent'
+
+        // Set number of parameters based on model type
+        if (modelType === 'factorial') {
+            // Factorial: wine effects + spice effects
+            this.numParams = numWines + numSpices;
+        } else if (modelType === 'independent') {
+            // Independent: one parameter per combination
+            this.numParams = numWines * numSpices;
+        } else {
+            throw new Error(`Unknown model type: ${modelType}`);
+        }
 
         // Prior parameters
         this.priorMean = 0;
         this.priorPrecision = 0.01; // Small precision = large variance (very weak prior)
 
-        // Model parameters (wine effects + spice effects)
+        // Model parameters
         this.params = new Array(this.numParams).fill(0);
 
         // Uncertainty estimates (standard deviations)
@@ -32,16 +43,28 @@ class BayesianBradleyTerry {
      * Get score for a wine-spice combination
      */
     getScore(wineIdx, spiceIdx) {
-        return this.params[wineIdx] + this.params[this.numWines + spiceIdx];
+        if (this.modelType === 'factorial') {
+            return this.params[wineIdx] + this.params[this.numWines + spiceIdx];
+        } else {
+            // Independent: direct indexing
+            const idx = wineIdx * this.numSpices + spiceIdx;
+            return this.params[idx];
+        }
     }
 
     /**
      * Get uncertainty for a wine-spice combination
      */
     getUncertainty(wineIdx, spiceIdx) {
-        const wineVar = this.uncertainties[wineIdx] ** 2;
-        const spiceVar = this.uncertainties[this.numWines + spiceIdx] ** 2;
-        return Math.sqrt(wineVar + spiceVar);
+        if (this.modelType === 'factorial') {
+            const wineVar = this.uncertainties[wineIdx] ** 2;
+            const spiceVar = this.uncertainties[this.numWines + spiceIdx] ** 2;
+            return Math.sqrt(wineVar + spiceVar);
+        } else {
+            // Independent: direct uncertainty
+            const idx = wineIdx * this.numSpices + spiceIdx;
+            return this.uncertainties[idx];
+        }
     }
 
     /**
@@ -108,11 +131,19 @@ class BayesianBradleyTerry {
             const y = comp.winner === 1 ? 1 : 0;
             const error = prob - y;
 
-            // Gradient for wine and spice effects
-            grad[comp.wine1] += error;
-            grad[this.numWines + comp.spice1] += error;
-            grad[comp.wine2] -= error;
-            grad[this.numWines + comp.spice2] -= error;
+            if (this.modelType === 'factorial') {
+                // Gradient for wine and spice effects
+                grad[comp.wine1] += error;
+                grad[this.numWines + comp.spice1] += error;
+                grad[comp.wine2] -= error;
+                grad[this.numWines + comp.spice2] -= error;
+            } else {
+                // Independent: gradient for each arm
+                const idx1 = comp.wine1 * this.numSpices + comp.spice1;
+                const idx2 = comp.wine2 * this.numSpices + comp.spice2;
+                grad[idx1] += error;
+                grad[idx2] -= error;
+            }
         }
 
         // Gradient from prior
@@ -139,14 +170,25 @@ class BayesianBradleyTerry {
             const prob = this.sigmoid(diff);
             const variance = prob * (1 - prob);
 
-            // Indices of parameters involved
-            const idx1Wine = comp.wine1;
-            const idx1Spice = this.numWines + comp.spice1;
-            const idx2Wine = comp.wine2;
-            const idx2Spice = this.numWines + comp.spice2;
+            let indices1, indices2;
 
-            const indices1 = [idx1Wine, idx1Spice];
-            const indices2 = [idx2Wine, idx2Spice];
+            if (this.modelType === 'factorial') {
+                // Indices of parameters involved
+                const idx1Wine = comp.wine1;
+                const idx1Spice = this.numWines + comp.spice1;
+                const idx2Wine = comp.wine2;
+                const idx2Spice = this.numWines + comp.spice2;
+
+                indices1 = [idx1Wine, idx1Spice];
+                indices2 = [idx2Wine, idx2Spice];
+            } else {
+                // Independent: single index per arm
+                const idx1 = comp.wine1 * this.numSpices + comp.spice1;
+                const idx2 = comp.wine2 * this.numSpices + comp.spice2;
+
+                indices1 = [idx1];
+                indices2 = [idx2];
+            }
 
             // Add to Hessian (second derivative of log-likelihood)
             for (const i of indices1) {
@@ -672,6 +714,59 @@ class BayesianBradleyTerry {
         this.params = new Array(this.numParams).fill(0);
         this.uncertainties = new Array(this.numParams).fill(10.0);
         this.comparisons = [];
+    }
+
+    /**
+     * Switch model type and refit
+     */
+    switchModelType(newModelType) {
+        if (newModelType === this.modelType) {
+            return; // Already using this model type
+        }
+
+        this.modelType = newModelType;
+
+        // Update number of parameters
+        if (newModelType === 'factorial') {
+            this.numParams = this.numWines + this.numSpices;
+        } else {
+            this.numParams = this.numWines * this.numSpices;
+        }
+
+        // Reset parameters and refit
+        this.params = new Array(this.numParams).fill(0);
+        this.uncertainties = new Array(this.numParams).fill(10.0);
+
+        if (this.comparisons.length > 0) {
+            this.fit();
+        }
+    }
+
+    /**
+     * Compute log-likelihood of the current model
+     * (Higher is better)
+     */
+    computeLogLikelihood() {
+        if (this.comparisons.length === 0) {
+            return 0;
+        }
+
+        let ll = 0;
+        for (const comp of this.comparisons) {
+            const score1 = this.getScore(comp.wine1, comp.spice1);
+            const score2 = this.getScore(comp.wine2, comp.spice2);
+            const diff = score1 - score2;
+
+            const prob = this.sigmoid(diff);
+
+            if (comp.winner === 1) {
+                ll += Math.log(Math.max(prob, 1e-10));
+            } else {
+                ll += Math.log(Math.max(1 - prob, 1e-10));
+            }
+        }
+
+        return ll;
     }
 }
 

@@ -587,6 +587,161 @@ test('Decision consistency inversely correlates with noise', () => {
     console.log(`    High noise consistency: ${(highNoiseConsistency * 100).toFixed(1)}%`);
 });
 
+console.log('\n═══════════════════════════════════════════════════════');
+console.log('Testing Factorial vs Independent Models');
+console.log('═══════════════════════════════════════════════════════\n');
+
+// ===================================
+// PART 6: Model Comparison
+// ===================================
+
+/**
+ * Generate data with interaction effects
+ * (where factorial model assumptions are violated)
+ */
+function generateDataWithInteractions(numWines, numSpices, numComparisons) {
+    const comparisons = [];
+    const sigmoid = (x) => 1 / (1 + Math.exp(-x));
+
+    // True scores with interaction effects
+    // For 2x3 case: some combinations have non-additive scores
+    const trueScores = {};
+    if (numWines === 2 && numSpices === 3) {
+        // Wine A + Spice 1: very good (interaction!)
+        trueScores['0,0'] = 2.0;
+        // Wine A + Spice 2: mediocre
+        trueScores['0,1'] = 0.0;
+        // Wine A + Spice 3: poor
+        trueScores['0,2'] = -1.0;
+        // Wine B + Spice 1: poor
+        trueScores['1,0'] = -1.0;
+        // Wine B + Spice 2: good
+        trueScores['1,1'] = 1.0;
+        // Wine B + Spice 3: very good (interaction!)
+        trueScores['1,2'] = 2.5;
+    }
+
+    const sigma = 0.5; // Low noise for clear signal
+
+    for (let i = 0; i < numComparisons; i++) {
+        const w1 = Math.floor(Math.random() * numWines);
+        const s1 = Math.floor(Math.random() * numSpices);
+        let w2 = Math.floor(Math.random() * numWines);
+        let s2 = Math.floor(Math.random() * numSpices);
+
+        while (w1 === w2 && s1 === s2) {
+            w2 = Math.floor(Math.random() * numWines);
+            s2 = Math.floor(Math.random() * numSpices);
+        }
+
+        const score1 = trueScores[`${w1},${s1}`];
+        const score2 = trueScores[`${w2},${s2}`];
+        const diff = (score1 - score2) / sigma;
+        const prob1Wins = sigmoid(diff);
+
+        const winner = Math.random() < prob1Wins ? 1 : 2;
+
+        comparisons.push({
+            wine1: w1,
+            spice1: s1,
+            wine2: w2,
+            spice2: s2,
+            winner: winner
+        });
+    }
+
+    return comparisons;
+}
+
+// Test 20: Independent model fits better with interaction effects
+test('Independent model fits better than factorial with interactions', () => {
+    const numWines = 2;
+    const numSpices = 3;
+    const numComparisons = 100;
+
+    // Generate data with strong interaction effects
+    const data = generateDataWithInteractions(numWines, numSpices, numComparisons);
+
+    // Fit factorial model
+    const factorialModel = new BayesianBradleyTerry(numWines, numSpices, 'factorial');
+    data.forEach(comp => {
+        factorialModel.addComparison(comp.wine1, comp.spice1, comp.wine2, comp.spice2, comp.winner);
+    });
+
+    // Fit independent model
+    const independentModel = new BayesianBradleyTerry(numWines, numSpices, 'independent');
+    data.forEach(comp => {
+        independentModel.addComparison(comp.wine1, comp.spice1, comp.wine2, comp.spice2, comp.winner);
+    });
+
+    const factorialLL = factorialModel.computeLogLikelihood();
+    const independentLL = independentModel.computeLogLikelihood();
+
+    // Independent model should have higher log-likelihood
+    assert(independentLL > factorialLL,
+           'Independent model should fit better with interaction effects');
+
+    console.log(`    Factorial LL: ${factorialLL.toFixed(2)}`);
+    console.log(`    Independent LL: ${independentLL.toFixed(2)}`);
+    console.log(`    Difference: ${(independentLL - factorialLL).toFixed(2)}`);
+});
+
+// Test 21: Factorial model is simpler when no interactions
+test('Factorial model has fewer parameters', () => {
+    const numWines = 2;
+    const numSpices = 3;
+
+    const factorialModel = new BayesianBradleyTerry(numWines, numSpices, 'factorial');
+    const independentModel = new BayesianBradleyTerry(numWines, numSpices, 'independent');
+
+    // Factorial: 2 + 3 = 5 parameters
+    assert(factorialModel.numParams === 5,
+           'Factorial model should have 5 parameters');
+
+    // Independent: 2 * 3 = 6 parameters
+    assert(independentModel.numParams === 6,
+           'Independent model should have 6 parameters');
+
+    assert(factorialModel.numParams < independentModel.numParams,
+           'Factorial model should have fewer parameters');
+
+    console.log(`    Factorial params: ${factorialModel.numParams}`);
+    console.log(`    Independent params: ${independentModel.numParams}`);
+});
+
+// Test 22: Model switching preserves data
+test('Switching model types preserves comparison data', () => {
+    const model = new BayesianBradleyTerry(2, 2, 'factorial');
+
+    // Add some comparisons
+    model.addComparison(0, 0, 1, 1, 1);
+    model.addComparison(0, 1, 1, 0, 2);
+    model.addComparison(0, 0, 0, 1, 1);
+
+    const numComparisons = model.comparisons.length;
+
+    // Switch to independent
+    model.switchModelType('independent');
+
+    // Comparisons should be preserved
+    assert(model.comparisons.length === numComparisons,
+           'Comparisons should be preserved after model switch');
+
+    // Model type should be updated
+    assert(model.modelType === 'independent',
+           'Model type should be independent');
+
+    // Switch back to factorial
+    model.switchModelType('factorial');
+
+    assert(model.comparisons.length === numComparisons,
+           'Comparisons should still be preserved');
+    assert(model.modelType === 'factorial',
+           'Model type should be factorial');
+
+    console.log(`    Comparisons preserved: ${model.comparisons.length}`);
+});
+
 // ===================================
 // Summary
 // ===================================

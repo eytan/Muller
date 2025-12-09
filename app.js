@@ -610,6 +610,28 @@ class WineBanditApp {
             this.updateDisplay();
         });
 
+        // Model type toggle
+        const modelFactorial = document.getElementById('modelFactorial');
+        const modelIndependent = document.getElementById('modelIndependent');
+
+        modelFactorial.addEventListener('click', () => {
+            this.model.switchModelType('factorial');
+            modelFactorial.classList.add('active');
+            modelIndependent.classList.remove('active');
+            this.updateDisplay();
+            this.updateComparisonButtons();
+            this.updateComparisonTable();
+        });
+
+        modelIndependent.addEventListener('click', () => {
+            this.model.switchModelType('independent');
+            modelIndependent.classList.add('active');
+            modelFactorial.classList.remove('active');
+            this.updateDisplay();
+            this.updateComparisonButtons();
+            this.updateComparisonTable();
+        });
+
         // CSV export
         const exportCsv = document.getElementById('exportCsv');
         exportCsv.addEventListener('click', (e) => {
